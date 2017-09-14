@@ -204,8 +204,9 @@ public class Database {
          * @param value The value you want to set
          * @since 1.0.0
          */
-        public void set(String key, String value) {
+        public DatabaseOptions set(String key, String value) {
             config.addDataSourceProperty(key, value);
+            return this;
         }
 
         /**
