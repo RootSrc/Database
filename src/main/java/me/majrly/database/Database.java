@@ -1,5 +1,7 @@
 package me.majrly.database;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import me.majrly.database.params.Parameter;
 import me.majrly.database.statements.Query;
 import me.majrly.database.statements.Statement;
@@ -9,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Official Database API
+ * Database API
  *
  * @author Majrly
  * @since 1.0.0
@@ -24,12 +26,13 @@ public class Database {
     private String database;
 
     private int port = 3306;
-    private int timeout = 60;
+    private int timeout = 60 * 1000;
 
-    private Connection connection;
+    private HikariDataSource source;
+    private HikariConfig config = new HikariConfig();
 
     /**
-     * Official Database API
+     * Database API
      *
      * @param name     The name of this database instance
      * @param hostname The ip to use when connecting
@@ -39,32 +42,13 @@ public class Database {
      * @param port     The port to use when connecting
      * @since 1.0.0
      */
-    public Database(String name, String hostname, String username, String password, String database, int port) {
-        this.hostname = hostname;
-        this.username = username;
-        this.password = password;
-        this.database = database;
-        this.port = port;
-    }
-
-    /**
-     * Official Database API
-     *
-     * @param name     The name of this database instance
-     * @param hostname The ip to use when connecting
-     * @param username The username to authenticate as
-     * @param password The password to authenticate yourself
-     * @param database The name of the database to switch to
-     * @param port     The port to use when connecting
-     * @param timeout  The sql connection timeout in seconds
-     * @since 1.0.0
-     */
-    public Database(String name, String hostname, String username, String password, String database, int port, int timeout) {
-        this.hostname = hostname;
-        this.username = username;
-        this.password = password;
-        this.database = database;
-        this.port = port;
+    public Database(String name, String hostname, String username, String password, String database, int port, HikariConfig config) {
+        this.name = name;
+        this.config = config;
+        this.config.setJdbcUrl("jdbc:mysql://" + (this.hostname = hostname) + ":" + (this.port = port) + "/" + (this.database = database));
+        this.config.setUsername(this.username = username);
+        this.config.setPassword(this.password = password);
+        init();
     }
 
     /**
@@ -83,17 +67,8 @@ public class Database {
      * @return Whether it connected or not
      * @since 1.0.0
      */
-    public boolean connect() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                return true;
-            }
-            connection = DriverManager.getConnection("jdbc:mysql://" + hostname + ":" + port + "/" + database + "?autoReconnect=true&connectTimeout=" + timeout, username, password);
-            return true;
-        } catch (SQLException exception) {
-            exception.printStackTrace();
-            return false;
-        }
+    public void init() {
+        source = new HikariDataSource(config);
     }
 
     /**
@@ -127,8 +102,7 @@ public class Database {
      */
     public Optional<PreparedStatement> prepare(Statement statement) {
         try {
-            if (connect()) return Optional.empty();
-            PreparedStatement preparedStatement = connection.prepareStatement(statement.getSQL());
+            PreparedStatement preparedStatement = source.getConnection().prepareStatement(statement.getSQL());
             for (Map.Entry<Integer, Parameter> parameter : statement.getParameters().entrySet()) {
                 switch (parameter.getValue().getType()) {
                     case STRING:
@@ -165,8 +139,7 @@ public class Database {
      */
     public Optional<PreparedStatement> prepare(String sql) {
         try {
-            if (connect()) return Optional.empty();
-            return Optional.of(connection.prepareStatement(sql));
+            return Optional.of(source.getConnection().prepareStatement(sql));
         } catch (SQLException exception) {
             exception.printStackTrace();
             return Optional.empty();
@@ -180,7 +153,6 @@ public class Database {
      * @since 1.0.0
      */
     public Optional<Connection> getConnection() {
-        if (connect()) return Optional.of(connection);
         return Optional.empty();
     }
 
@@ -190,11 +162,19 @@ public class Database {
      * @since 1.0.0
      */
     public void close() {
-        try {
-            connection.close();
-        } catch (SQLException exception) {
-            exception.printStackTrace();
-        }
+        source.close();
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public HikariConfig getConfig() {
+        return config;
+    }
+
+    public HikariDataSource getSource() {
+        return source;
     }
 
     /**
@@ -206,6 +186,8 @@ public class Database {
     public static class DatabaseOptions {
 
         // Variables
+        private HikariConfig config = new HikariConfig();
+
         private String name;
         private String hostname = "127.0.0.1";
         private String username = "root";
@@ -216,11 +198,23 @@ public class Database {
         private int timeout = 60 * 1000;
 
         /**
+         * Set a key/value in the HikariConfig
+         *
+         * @param key   The key you want to set a value to
+         * @param value The value you want to set
+         * @since 1.0.0
+         */
+        public void set(String key, String value) {
+            config.addDataSourceProperty(key, value);
+        }
+
+        /**
          * Set the hostname / port to connect
          *
          * @param hostname The hostname of the database
          * @param port     The port of the database
          * @return This object
+         * @since 1.0.0
          */
         public DatabaseOptions hostname(String hostname, int port) {
             this.database = database;
@@ -234,6 +228,7 @@ public class Database {
          * @param username The user you want to authenticate as
          * @param password The password you want to authenticate with
          * @return This object
+         * @since 1.0.0
          */
         public DatabaseOptions auth(String username, String password) {
             this.username = username;
@@ -246,6 +241,7 @@ public class Database {
          *
          * @param database The database you want to switch to
          * @return This object
+         * @since 1.0.0
          */
         public DatabaseOptions database(String database) {
             this.database = database;
@@ -257,6 +253,7 @@ public class Database {
          *
          * @param name The name of the database connection
          * @return This object
+         * @since 1.0.0
          */
         public DatabaseOptions identifyAs(String name) {
             this.name = name;
@@ -268,6 +265,7 @@ public class Database {
          *
          * @param timeout The max amount of time to connect
          * @return This object
+         * @since 1.0.0
          */
         public DatabaseOptions timeout(int timeout) {
             this.timeout = timeout;
@@ -278,9 +276,10 @@ public class Database {
          * Build this class
          *
          * @return The database object
+         * @since 1.0.0
          */
         public Database build() {
-            return new Database(name, hostname, username, password, database, port, timeout);
+            return new Database(name, hostname, username, password, database, port, config);
         }
     }
 }
