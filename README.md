@@ -26,10 +26,18 @@ database.send(query); // Send the Query
 ```
 ...or send an Update:
 ```JAVA
+Database database = DatabaseManager.getDatabase("name"); // Get the Database instance you created
 Update update = new Update("UPDATE `users` SET `coins`=? WHERE `id`=?"); // Create a MySQL Update statement
 update.setInteger(10200); // Escape the amount of coins
 update.setString(id.toString()); // Escape the UUID
 database.send(update); // Send the update
+```
+...or prepare your own statement:
+```JAVA
+Database database = DatabaseManager.getDatabase("name"); // Get the Database instance you created
+Statement statement = new Statement("INSERT INTO `users`(`id`, `coins`) VALUES(?, ?)");
+statement.setString(...);
+database.prepare(statement);
 ```
 
 That's it! I'm working on adding more features.
