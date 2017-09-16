@@ -43,12 +43,11 @@ public class Database {
      * @since 1.0.0
      */
     public Database(String name, String hostname, String username, String password, String database, int port, HikariConfig config) {
-        this.name = name;
         this.config = config;
-        this.config.setJdbcUrl("jdbc:mysql://" + (this.hostname = hostname) + ":" + (this.port = port) + "/" + (this.database = database));
+        this.config.setJdbcUrl("jdbc:" + (this.name = name) + "://" + (this.hostname = hostname) + ":" + (this.port = port) + "/" + (this.database = database));
         this.config.setUsername(this.username = username);
         this.config.setPassword(this.password = password);
-        init();
+        this.source = new HikariDataSource(config);
     }
 
     /**
@@ -68,7 +67,6 @@ public class Database {
      * @since 1.0.0
      */
     public void init() {
-        source = new HikariDataSource(config);
     }
 
     /**
