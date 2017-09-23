@@ -2,6 +2,7 @@ package me.majrly.database;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import lombok.Getter;
 import me.majrly.database.params.Parameter;
 import me.majrly.database.statements.Query;
 import me.majrly.database.statements.Statement;
@@ -19,17 +20,40 @@ import java.util.Optional;
 public class Database {
 
     // Variables
-    private String name;
-    private String hostname;
-    private String username;
-    private String password;
-    private String database;
+    @Getter private String name;
+    @Getter private String hostname;
+    @Getter private String username;
+    @Getter private String password;
+    @Getter private String database;
+    @Getter private String type;
 
-    private int port = 3306;
-    private int timeout = 60 * 1000;
+    @Getter private int port = 3306;
 
-    private HikariDataSource source;
-    private HikariConfig config = new HikariConfig();
+    @Getter private HikariDataSource source;
+    @Getter private HikariConfig config = new HikariConfig();
+
+    /**
+     * Database API
+     *
+     * @param type     The type of database instance
+     * @param driver   The driver for the database
+     * @param name     The name of this database instance
+     * @param hostname The ip to use when connecting
+     * @param username The username to authenticate as
+     * @param password The password to authenticate yourself
+     * @param database The name of the database to switch to
+     * @param port     The port to use when connecting
+     * @since 1.0.0
+     */
+    public Database(String type, String driver, String name, String hostname, String username, String password, String database, int port, HikariConfig config) {
+        this.config = config;
+        this.name = name;
+        this.config.setDriverClassName(driver);
+        this.config.setJdbcUrl("jdbc:" + (this.type = type) + "://" + (this.hostname = hostname) + ":" + (this.port = port) + "/" + (this.database = database));
+        this.config.setUsername(this.username = username);
+        this.config.setPassword(this.password = password);
+        this.source = new HikariDataSource(config);
+    }
 
     /**
      * Database API
@@ -43,11 +67,7 @@ public class Database {
      * @since 1.0.0
      */
     public Database(String name, String hostname, String username, String password, String database, int port, HikariConfig config) {
-        this.config = config;
-        this.config.setJdbcUrl("jdbc:" + (this.name = name) + "://" + (this.hostname = hostname) + ":" + (this.port = port) + "/" + (this.database = database));
-        this.config.setUsername(this.username = username);
-        this.config.setPassword(this.password = password);
-        this.source = new HikariDataSource(config);
+        this("mysql", "com.mysql.jdbc.Driver", name, hostname, username, password, database, port, config);
     }
 
     /**
@@ -61,15 +81,6 @@ public class Database {
     }
 
     /**
-     * Connects to the database
-     *
-     * @return Whether it connected or not
-     * @since 1.0.0
-     */
-    public void init() {
-    }
-
-    /**
      * Sends a query to the database
      *
      * @param statement The statement to send the database
@@ -77,8 +88,8 @@ public class Database {
      * @since 1.0.0
      */
     public Optional<?> send(Statement statement) {
+        Optional<PreparedStatement> preparedStatement = prepare(statement);
         try {
-            Optional<PreparedStatement> preparedStatement = prepare(statement);
             if (!preparedStatement.isPresent()) return Optional.empty();
             if (statement instanceof Query) {
                 return Optional.of(preparedStatement.get().executeQuery());
@@ -100,25 +111,36 @@ public class Database {
      */
     public Optional<PreparedStatement> prepare(Statement statement) {
         try {
-            PreparedStatement preparedStatement = source.getConnection().prepareStatement(statement.getSQL());
+            PreparedStatement preparedStatement = source.getConnection().prepareStatement(statement.getSql());
             for (Map.Entry<Integer, Parameter> parameter : statement.getParameters().entrySet()) {
                 switch (parameter.getValue().getType()) {
                     case STRING:
                         preparedStatement.setString(parameter.getKey(), (String) parameter.getValue().getData());
+                        break;
                     case INTEGER:
                         preparedStatement.setInt(parameter.getKey(), (Integer) parameter.getValue().getData());
+                        break;
                     case DOUBLE:
                         preparedStatement.setDouble(parameter.getKey(), (Double) parameter.getValue().getData());
+                        break;
                     case LONG:
                         preparedStatement.setLong(parameter.getKey(), (Long) parameter.getValue().getData());
+                        break;
                     case BLOB:
                         preparedStatement.setBlob(parameter.getKey(), (Blob) parameter.getValue().getData());
+                        break;
                     case FLOAT:
                         preparedStatement.setFloat(parameter.getKey(), (Float) parameter.getValue().getData());
+                        break;
                     case BOOLEAN:
                         preparedStatement.setBoolean(parameter.getKey(), (Boolean) parameter.getValue().getData());
+                        break;
                     case DATE:
                         preparedStatement.setDate(parameter.getKey(), (Date) parameter.getValue().getData());
+                        break;
+                    default:
+                        preparedStatement.setObject(parameter.getKey(), parameter.getValue().getData());
+                        break;
                 }
             }
             return Optional.of(preparedStatement);
@@ -136,11 +158,21 @@ public class Database {
      * @since 1.0.0
      */
     public Optional<PreparedStatement> prepare(String sql) {
+        PreparedStatement preparedStatement = null;
         try {
-            return Optional.of(source.getConnection().prepareStatement(sql));
+            return Optional.of(preparedStatement = source.getConnection().prepareStatement(sql));
         } catch (SQLException exception) {
             exception.printStackTrace();
             return Optional.empty();
+        } finally {
+            try {
+                if (preparedStatement != null) {
+                    preparedStatement = source.getConnection().prepareStatement(sql);
+                }
+            } catch (SQLException e) {
+                // Couldn't close connection
+                e.printStackTrace();
+            }
         }
     }
 
@@ -163,18 +195,6 @@ public class Database {
         source.close();
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public HikariConfig getConfig() {
-        return config;
-    }
-
-    public HikariDataSource getSource() {
-        return source;
-    }
-
     /**
      * Database options used for {@link Database}
      *
@@ -191,9 +211,10 @@ public class Database {
         private String username = "root";
         private String password;
         private String database;
+        private String type;
+        private String driver;
 
         private int port = 3306;
-        private int timeout = 60 * 1000;
 
         /**
          * Set a key/value in the HikariConfig
@@ -254,20 +275,32 @@ public class Database {
          * @return This object
          * @since 1.0.0
          */
-        public DatabaseOptions identifyAs(String name) {
+        public DatabaseOptions name(String name) {
             this.name = name;
             return this;
         }
 
         /**
-         * Set the timeout of the connection
+         * Set the type of sql database
          *
-         * @param timeout The max amount of time to connect
+         * @param type The type of the SQL server
          * @return This object
          * @since 1.0.0
          */
-        public DatabaseOptions timeout(int timeout) {
-            this.timeout = timeout;
+        public DatabaseOptions type(String type) {
+            this.type = type;
+            return this;
+        }
+
+        /**
+         * Set the drvier for the sql database
+         *
+         * @param type The driver of the SQL server
+         * @return This object
+         * @since 1.0.0
+         */
+        public DatabaseOptions driver(String type) {
+            this.driver = type;
             return this;
         }
 
@@ -278,7 +311,7 @@ public class Database {
          * @since 1.0.0
          */
         public Database build() {
-            return new Database(name, hostname, username, password, database, port, config);
+            return new Database(type, driver, name, hostname, username, password, database, port, config);
         }
     }
 }

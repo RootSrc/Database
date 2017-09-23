@@ -25,13 +25,25 @@ public class Parameter {
     }
 
     /**
+     * Used to set parameters
+     *
+     * @param type The type of data you want sent
+     * @param data The data
+     * @since 1.0.0
+     */
+    public Parameter(Object data) {
+        this.type = Type.OBJECT;
+        this.data = data;
+    }
+
+    /**
      * The type of data you want sent
      *
      * @author Majrly
      * @since 1.0.0
      */
     public enum Type {
-        STRING, BLOB, INTEGER, DOUBLE, FLOAT, DATE, LONG, BOOLEAN;
+        STRING, BLOB, INTEGER, DOUBLE, FLOAT, DATE, LONG, BOOLEAN, OBJECT;
     }
 
     public Object getData() {

@@ -1,5 +1,7 @@
 package me.majrly.database;
 
+import lombok.Getter;
+
 import java.util.HashMap;
 
 /**
@@ -10,6 +12,7 @@ import java.util.HashMap;
  */
 public class DatabaseManager {
 
+    @Getter
     private static HashMap<String, Database> databases = new HashMap<>();
 
     /**
@@ -31,10 +34,5 @@ public class DatabaseManager {
      */
     public static Database getDatabase(String name) {
         return databases.get(name);
-    }
-
-    // Getters
-    public static HashMap<String, Database> getDatabases() {
-        return databases;
     }
 }

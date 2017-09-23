@@ -1,5 +1,6 @@
 package me.majrly.database.statements;
 
+import lombok.Getter;
 import me.majrly.database.params.Parameter;
 
 import java.sql.Blob;
@@ -15,9 +16,11 @@ import java.util.HashMap;
 public class Statement {
 
     // Variables
+    @Getter
     private String sql;
-    private int amount = 0;
+    @Getter
     private HashMap<Integer, Parameter> parameters = new HashMap<Integer, Parameter>();
+    private int amount = 1;
 
     /**
      * Used to create SQL statements
@@ -99,12 +102,13 @@ public class Statement {
         this.parameters.put(amount++, new Parameter(Parameter.Type.BOOLEAN, data));
     }
 
-    // Getters
-    public String getSQL() {
-        return sql;
-    }
-
-    public HashMap<Integer, Parameter> getParameters() {
-        return parameters;
+    /**
+     * Escape an Object
+     *
+     * @param data The object you want to escape
+     * @since 1.0.0
+     */
+    public void setObject(Object data) {
+        this.parameters.put(amount++, new Parameter(Parameter.Type.OBJECT, data));
     }
 }
